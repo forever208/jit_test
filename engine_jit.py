@@ -25,6 +25,8 @@ def train_one_epoch(model, model_without_ddp, data_loader, optimizer, device, ep
     if log_writer is not None:
         print('log_dir: {}'.format(log_writer.log_dir))
 
+    torch.distributed.barrier()
+
     for data_iter_step, (x, labels) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
         # per iteration (instead of per epoch) lr scheduler
         lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
@@ -85,6 +87,7 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
         os.makedirs(save_folder)
 
     # switch to ema params, hard-coded to be the first one
+    torch.distributed.barrier()
     model_state_dict = copy.deepcopy(model_without_ddp.state_dict())
     ema_state_dict = copy.deepcopy(model_without_ddp.state_dict())
     for i, (name, _value) in enumerate(model_without_ddp.named_parameters()):
@@ -92,6 +95,7 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
         ema_state_dict[name] = model_without_ddp.ema_params1[i]
     print("Switch to ema")
     model_without_ddp.load_state_dict(ema_state_dict)
+    torch.distributed.barrier()
 
     # ensure that the number of images per class is equal.
     class_num = args.class_num
@@ -128,7 +132,7 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
     torch.distributed.barrier()
 
     # back to no ema
-    print("Switch back from ema")
+    print("Switch model from ema (for eval) to no ema (for training)")
     model_without_ddp.load_state_dict(model_state_dict)
 
     # compute FID and IS
