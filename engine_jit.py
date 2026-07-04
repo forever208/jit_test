@@ -136,7 +136,9 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
     model_without_ddp.load_state_dict(model_state_dict)
 
     # compute FID and IS
-    if log_writer is not None:
+    fid = float("nan")
+    inception_score = float("nan")
+    if misc.is_main_process():
         if args.img_size == 256:
             fid_statistics_file = 'fid_stats/jit_in256_stats.npz'
         elif args.img_size == 512:
@@ -156,10 +158,19 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
         )
         fid = metrics_dict['frechet_inception_distance']
         inception_score = metrics_dict['inception_score_mean']
-        postfix = "_cfg{}_res{}".format(model_without_ddp.cfg_scale, args.img_size)
-        log_writer.add_scalar('fid{}'.format(postfix), fid, epoch)
-        log_writer.add_scalar('is{}'.format(postfix), inception_score, epoch)
         print("FID: {:.4f}, Inception Score: {:.4f}".format(fid, inception_score))
+
+    # IMPORTANT: sync BEFORE cleanup and BEFORE broadcast
+    torch.distributed.barrier()
+
+    # broadcast numbers from rank0 so every rank can safely unpack
+    t = torch.tensor([fid, inception_score], device='cuda', dtype=torch.float32)
+    torch.distributed.broadcast(t, src=0)
+    fid, inception_score = float(t[0].item()), float(t[1].item())
+
+    torch.distributed.barrier()
+    if misc.is_main_process():
         shutil.rmtree(save_folder)
 
     torch.distributed.barrier()
+    return fid, inception_score
