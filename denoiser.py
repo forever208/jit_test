@@ -46,6 +46,25 @@ class Denoiser(nn.Module):
         z = torch.randn(n, device=device) * self.P_std + self.P_mean
         return torch.sigmoid(z)
 
+    # def sample_t(self, n: int, device=None, reject_range=(0.94, 1.0)):
+    #     lo, hi = reject_range
+    #     assert 0.0 <= lo < hi <= 1.0, "reject_range should be inside [0, 1]"
+    #     assert not (lo <= 0.0 and hi >= 1.0), "Cannot reject the whole valid sigmoid range"
+    #
+    #     z = torch.randn(n, device=device) * self.P_std + self.P_mean
+    #     t = torch.sigmoid(z)
+    #
+    #     mask = (t >= lo) & (t <= hi)
+    #     while mask.any():
+    #         num_reject = mask.sum().item()
+    #         z_new = torch.randn(num_reject, device=device) * self.P_std + self.P_mean
+    #         t_new = torch.sigmoid(z_new)
+    #         t[mask] = t_new
+    #         mask = (t >= lo) & (t <= hi)
+    #
+    #     perm = torch.randperm(n, device=device)
+    #     return t[perm]
+
     def forward(self, x, labels):
         labels_dropped = self.drop_labels(labels) if self.training else labels
 
