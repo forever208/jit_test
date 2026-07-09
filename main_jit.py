@@ -2,6 +2,8 @@ import argparse
 import datetime
 import numpy as np
 import os
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+import random
 import time
 from pathlib import Path
 
@@ -84,6 +86,12 @@ def get_args_parser():
     return parser
 
 
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 def main(args):
     misc.init_distributed_mode(args)
     print('Job directory:', os.path.dirname(os.path.realpath(__file__)))
@@ -94,9 +102,13 @@ def main(args):
     # Set seeds for reproducibility
     seed = args.seed + misc.get_rank()
     torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
+    random.seed(seed)
 
-    cudnn.benchmark = True
+    cudnn.benchmark = False
+    cudnn.deterministic = True
+    torch.use_deterministic_algorithms(True)
 
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
@@ -119,9 +131,12 @@ def main(args):
     print(dataset_train)
 
     sampler_train = torch.utils.data.DistributedSampler(
-        dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+        dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True, seed=args.seed
     )
     print("Sampler_train =", sampler_train)
+
+    data_loader_generator = torch.Generator()
+    data_loader_generator.manual_seed(seed)
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
@@ -129,6 +144,8 @@ def main(args):
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=True,
+        worker_init_fn=seed_worker,
+        generator=data_loader_generator,
         persistent_workers=True,  # fix the dataloader error
     )
 
