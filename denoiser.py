@@ -112,6 +112,9 @@ class Denoiser(nn.Module):
         x_cond = self.net(z, t.flatten(), labels)
         v_cond = (x_cond - z) / (1.0 - t).clamp_min(self.t_eps)
 
+        if self.cfg_scale == 0:
+            return v_cond
+
         # unconditional
         x_uncond = self.net(z, t.flatten(), torch.full_like(labels, self.num_classes))
         v_uncond = (x_uncond - z) / (1.0 - t).clamp_min(self.t_eps)

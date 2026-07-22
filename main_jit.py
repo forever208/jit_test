@@ -181,7 +181,11 @@ def main(args):
     checkpoint_path = args.resume if args.resume else None
     # checkpoint_path = os.path.join(args.resume, "checkpoint-last.pth") if args.resume else None
     if checkpoint_path and os.path.exists(checkpoint_path):
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        # Training checkpoints include non-tensor metadata such as
+        # argparse.Namespace, so they cannot use PyTorch 2.6+'s
+        # weights_only=True default. Checkpoints passed via --resume are
+        # expected to come from a trusted training run.
+        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
         model_without_ddp.load_state_dict(checkpoint['model'])
 
         ema_state_dict1 = checkpoint['model_ema1']
@@ -206,7 +210,12 @@ def main(args):
         with torch.random.fork_rng():
             torch.manual_seed(seed)
             with torch.no_grad():
-                evaluate(model_without_ddp, args, 0, batch_size=args.gen_bsz, log_writer=log_writer)
+                fid, is_score = evaluate(model_without_ddp, args, 0, batch_size=args.gen_bsz, log_writer=log_writer)
+        
+        if misc.is_main_process():
+                with open(os.path.join(args.output_dir, f'FID.log'), 'a') as f:
+                    print(f'epoch={checkpoint_path} FID={fid:.5f} IS={is_score:.5f}',file=f)
+
         return
 
     # Training loop
