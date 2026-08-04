@@ -248,13 +248,36 @@ def main(args):
         # Perform online evaluation at specified intervals
         if args.online_eval and (epoch % args.eval_freq == 0 or epoch + 1 == args.epochs) and epoch > 10:
             torch.cuda.empty_cache()
-            with torch.no_grad():
-                fid, is_score = evaluate(model_without_ddp, args, epoch, batch_size=args.gen_bsz, log_writer=log_writer)
-            torch.cuda.empty_cache()
+            cfg_scale = model_without_ddp.cfg_scale
+            try:
+                # Keep the CFG evaluation and subsequent training RNG state
+                # identical to the original single-evaluation behavior.
+                model_without_ddp.cfg_scale = 0.0
+                with torch.random.fork_rng():
+                    with torch.no_grad():
+                        fid, is_score = evaluate(
+                            model_without_ddp, args, epoch,
+                            batch_size=args.gen_bsz, log_writer=log_writer
+                        )
 
-            if misc.is_main_process():
-                with open(os.path.join(args.output_dir, f'eval.log'), 'a') as f:
-                    print(f'epoch={epoch} FID={fid:.5f} IS={is_score:.5f}',file=f)
+                if misc.is_main_process():
+                    with open(os.path.join(args.output_dir, 'eval_cond.log'), 'a') as f:
+                        print(f'epoch={epoch} FID={fid:.5f} IS={is_score:.5f}', file=f)
+
+                torch.cuda.empty_cache()
+                model_without_ddp.cfg_scale = cfg_scale
+                with torch.no_grad():
+                    fid, is_score = evaluate(
+                        model_without_ddp, args, epoch,
+                        batch_size=args.gen_bsz, log_writer=log_writer
+                    )
+
+                if misc.is_main_process():
+                    with open(os.path.join(args.output_dir, 'eval_cfg.log'), 'a') as f:
+                        print(f'epoch={epoch} FID={fid:.5f} IS={is_score:.5f}', file=f)
+            finally:
+                model_without_ddp.cfg_scale = cfg_scale
+                torch.cuda.empty_cache()
 
         if misc.is_main_process() and log_writer is not None:
             log_writer.flush()
