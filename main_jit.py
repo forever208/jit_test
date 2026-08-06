@@ -273,7 +273,7 @@ def main(args):
                     )
 
                 if misc.is_main_process():
-                    with open(os.path.join(args.output_dir, 'eval_cfg.log'), 'a') as f:
+                    with open(os.path.join(args.output_dir, f'eval_cfg_{cfg_scale}.log'), 'a') as f:
                         print(f'epoch={epoch} FID={fid:.5f} IS={is_score:.5f}', file=f)
             finally:
                 model_without_ddp.cfg_scale = cfg_scale
