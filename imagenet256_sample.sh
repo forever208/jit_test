@@ -35,7 +35,7 @@ for CFG in "${CFG_VALUES[@]}"; do
         --log-dir "$LOG_DIR/torchrun" --tee 3 \
         main_jit.py --model JiT-B/16 \
         --img_size 256 --noise_scale 1.0 --class_num 1000 \
-        --gen_bsz 626 --num_images 50000 --cfg "$CFG" --interval_min 0.1 --interval_max 1.0 \
+        --gen_bsz 256 --num_images 50000 --cfg "$CFG" --interval_min 0.1 --interval_max 1.0 \
         --output_dir "$OUTPUT_DIR" \
         --resume "$RESUME_PATH" \
         --data_path /mnt/vepfs/base2/stream/ningmang/datasets/imagenet256/train --evaluate_gen
