@@ -4,15 +4,14 @@ set -euo pipefail
 
 source /home/ningmang/miniconda3/etc/profile.d/conda.sh
 conda activate jit
-
 export TORCH_HOME=/home/ningmang/torch_cache
 
 cd /home/ningmang/jit
 
 # sampling
 EXP_DIR=base_b2k
-RESUME_EPOCHS=(400 440 480 520 560 600)
-CFG_VALUES=(0)
+RESUME_EPOCHS=(600)
+CFG_VALUES=(2.6 2.7)
 
 OUTPUT_DIR="/home/ningmang/jit/JiT_exps/$EXP_DIR"
 SUBMIT_LOG_DIR="$OUTPUT_DIR/logs/$(date +%Y%m%d_%H%M%S)_sample"
@@ -31,7 +30,7 @@ for CFG in "${CFG_VALUES[@]}"; do
             exit 1
         fi
 
-        torchrun --standalone --nproc_per_node=8 --nnodes=1 \
+        torchrun --nproc_per_node=8 --nnodes=1 \
         --log-dir "$LOG_DIR/torchrun" --tee 3 \
         main_jit.py --model JiT-B/16 \
         --img_size 256 --noise_scale 1.0 --class_num 1000 \
@@ -44,3 +43,4 @@ done
 
 
 # sslaunch submit -j sample -c zhongwei -q stream -n 1 --no-log -- bash imagenet256_sample.sh
+# sslaunch submit -j sample -q stream -n 1 --no-log -- bash imagenet256_sample.sh
