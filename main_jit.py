@@ -252,7 +252,7 @@ def main(args):
             try:
                 # Keep the CFG evaluation and subsequent training RNG state
                 # identical to the original single-evaluation behavior.
-                model_without_ddp.cfg_scale = 0.0
+                model_without_ddp.cfg_scale = 1.0
                 with torch.random.fork_rng():
                     with torch.no_grad():
                         fid, is_score = evaluate(
