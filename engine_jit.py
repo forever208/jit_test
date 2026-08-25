@@ -77,23 +77,33 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
     save_folder = os.path.join(
         "ssd/tmp",
         args.output_dir,
-        "{}-steps{}-cfg{}-interval{}-{}-image{}-res{}".format(
+        "{}-steps{}-cfg{}-ema{}-interval{}-{}-image{}-res{}".format(
             model_without_ddp.method, model_without_ddp.steps, model_without_ddp.cfg_scale,
-            model_without_ddp.cfg_interval[0], model_without_ddp.cfg_interval[1], args.num_images, args.img_size
+            args.eval_ema, model_without_ddp.cfg_interval[0], model_without_ddp.cfg_interval[1],
+            args.num_images, args.img_size
         )
     )
     print("Save to:", save_folder)
     if misc.get_rank() == 0 and not os.path.exists(save_folder):
         os.makedirs(save_folder)
 
-    # switch to ema params, hard-coded to be the first one
+    # Switch to the EMA selected for sampling.
+    if math.isclose(args.eval_ema, args.ema_decay1, rel_tol=0.0, abs_tol=1e-12):
+        ema_params = model_without_ddp.ema_params1
+    elif math.isclose(args.eval_ema, args.ema_decay2, rel_tol=0.0, abs_tol=1e-12):
+        ema_params = model_without_ddp.ema_params2
+    else:
+        raise ValueError(
+            f'--eval_ema={args.eval_ema} has no EMA weights; '
+            f'available decays are {args.ema_decay1} and {args.ema_decay2}'
+        )
     torch.distributed.barrier()
     model_state_dict = copy.deepcopy(model_without_ddp.state_dict())
     ema_state_dict = copy.deepcopy(model_without_ddp.state_dict())
     for i, (name, _value) in enumerate(model_without_ddp.named_parameters()):
         assert name in ema_state_dict
-        ema_state_dict[name] = model_without_ddp.ema_params1[i]
-    print("Switch to ema")
+        ema_state_dict[name] = ema_params[i]
+    print(f"Switch to EMA {args.eval_ema}")
     model_without_ddp.load_state_dict(ema_state_dict)
     torch.distributed.barrier()
 

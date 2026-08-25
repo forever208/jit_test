@@ -66,6 +66,7 @@ def get_args_parser():
     parser.add_argument('--online_eval', action='store_true')
     parser.add_argument('--evaluate_gen', action='store_true')
     parser.add_argument('--gen_bsz', type=int, default=256, help='Generation batch size')
+    parser.add_argument('--eval_ema', type=float, choices=(0.9999, 0.9996), default=0.9999, help='EMA decay whose weights are used for sampling',)
 
     # dataset
     parser.add_argument('--data_path', default='./data/imagenet', type=str, help='Path to the dataset')
@@ -214,7 +215,13 @@ def main(args):
         
         if misc.is_main_process():
                 with open(os.path.join(args.output_dir, f'FID.log'), 'a') as f:
-                    print(f'epoch={checkpoint_path} FID={fid:.5f} IS={is_score:.5f}',file=f)
+                    print(
+                        f'epoch={checkpoint_path} cfg={args.cfg:g} '
+                        f'ema={args.eval_ema:g} '
+                        f'interval_min={args.interval_min:g} interval_max={args.interval_max:g} '
+                        f'FID={fid:.5f} IS={is_score:.5f}',
+                        file=f,
+                    )
 
         return
 
