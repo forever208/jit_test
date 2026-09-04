@@ -4,9 +4,10 @@ set -euo pipefail
 
 source /home/ningmang/miniconda3/etc/profile.d/conda.sh
 conda activate jit
+export TORCH_HOME=/home/ningmang/torch_cache
 
 # log and error settings
-OUTPUT_DIR=/home/ningmang/jit/JiT_exps/imgnet256_base_b2k_l
+OUTPUT_DIR=/home/ningmang/jit/JiT_exps/base_b2k
 LOG_DIR="$OUTPUT_DIR/logs/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"
 exec > >(tee -a "$LOG_DIR/stdout.log") 2> >(tee -a "$LOG_DIR/stderr.log" >&2)
@@ -27,6 +28,7 @@ main_jit.py --model JiT-B/16 \
 --output_dir "$OUTPUT_DIR" 
 
 
-# --resume /home/ningmang/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
+# --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
 
-# sslaunch-noproxy submit -j jit -c zhongwei -q stream -n 1 --no-log -- bash imagenet256_train_base.sh
+# sslaunch submit -j base -c zhongwei -q stream -n 1 --no-log -- bash imagenet256_train_base.sh
+# sslaunch submit -j base -q stream -n 1 --no-log -- bash imagenet256_train_base.sh

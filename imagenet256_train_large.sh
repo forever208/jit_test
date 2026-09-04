@@ -4,6 +4,7 @@ set -euo pipefail
 
 source /home/ningmang/miniconda3/etc/profile.d/conda.sh
 conda activate jit
+export TORCH_HOME=/home/ningmang/torch_cache
 
 # log and error settings
 OUTPUT_DIR=/home/ningmang/jit/JiT_exps/large_b2k
@@ -27,7 +28,7 @@ main_jit.py --model JiT-L/16 \
 --output_dir "$OUTPUT_DIR" 
 
 
-# --resume /home/ningmang/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
+# --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
 
-# sslaunch-noproxy submit -j large -c zhongwei -q stream -n 1 --no-log -- bash imagenet256_train_base.sh
+# sslaunch submit -j large -c zhongwei -q stream -n 1 --no-log -- bash imagenet256_train_base.sh
 # sslaunch submit -j large -q stream -n 1 --no-log -- bash imagenet256_train_large.sh
