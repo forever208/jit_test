@@ -25,11 +25,10 @@ main_jit.py --model JiT-B/32 \
 --batch_size 256 --blr 5e-5 --epochs 601 --warmup_epochs 5 --num_workers 16 \
 --gen_bsz 256 --num_images 50000 --eval_freq 100 --cfg 2.9 --interval_min 0.1 --interval_max 1.0 \
 --data_path /mnt/vepfs/base2/stream/ningmang/datasets/imagenet256/train --online_eval \
---output_dir "$OUTPUT_DIR" \
---resume /home/ningmang/jit/JiT_exps/base_b2k_512/checkpoint-100.pth
+--output_dir "$OUTPUT_DIR"
 
 
 # --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
 
 # sslaunch submit -j p512 -c zhongwei -q stream -n 1 --no-log -- bash imagenet512_train_base.sh
-# sslaunch submit -j p512 -q stream -n 1 --no-log -- bash imagenet512_train_base.sh
+# sslaunch submit -j p512 -p low -q stream -n 1 --no-log -- bash imagenet512_train_base.sh
