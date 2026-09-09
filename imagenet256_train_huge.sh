@@ -7,7 +7,7 @@ conda activate jit
 export TORCH_HOME=/home/ningmang/torch_cache
 
 # log and error settings
-OUTPUT_DIR=/home/ningmang/jit/JiT_exps/base_huge_b2k
+OUTPUT_DIR=/home/ningmang/jit/JiT_exps/base_huge_b1k
 LOG_DIR="$OUTPUT_DIR/logs/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"
 exec > >(tee -a "$LOG_DIR/stdout.log") 2> >(tee -a "$LOG_DIR/stderr.log" >&2)
@@ -22,11 +22,11 @@ torchrun --nproc_per_node=8 --nnodes=1 --node_rank=0 \
 main_jit.py --model JiT-H/16 \
 --proj_dropout 0.2 --P_mean -0.8 --P_std 0.8 \
 --img_size 256 --noise_scale 1.0 --class_num 1000 \
---batch_size 256 --blr 5e-5 --epochs 601 --warmup_epochs 5 --num_workers 16 \
---gen_bsz 256 --num_images 50000 --eval_freq 100 --cfg 2.2 --interval_min 0.1 --interval_max 1.0 \
+--batch_size 128 --blr 5e-5 --epochs 601 --warmup_epochs 5 --num_workers 16 \
+--gen_bsz 256 --num_images 50000 --eval_freq 40 --cfg 2.2 --interval_min 0.1 --interval_max 1.0 \
 --data_path /mnt/vepfs/base2/stream/ningmang/datasets/imagenet256/train --online_eval \
---output_dir "$OUTPUT_DIR" \
---resume /home/ningmang/jit/JiT_exps/base_huge_b2k/checkpoint-200.pth
+--output_dir "$OUTPUT_DIR"
+# --resume /home/ningmang/jit/JiT_exps/base_huge_b2k/checkpoint-last.pth
 
 
 # --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
