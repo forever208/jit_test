@@ -22,7 +22,7 @@ torchrun --nproc_per_node=8 --nnodes=1 --node_rank=0 \
 main_jit.py --model JiT-H/16 \
 --proj_dropout 0.2 --P_mean -0.8 --P_std 0.8 \
 --img_size 256 --noise_scale 1.0 --class_num 1000 \
---batch_size 128 --blr 5e-5 --epochs 401 --warmup_epochs 5 --num_workers 16 \
+--batch_size 128 --blr 5e-5 --epochs 601 --warmup_epochs 5 --num_workers 16 \
 --gen_bsz 256 --num_images 50000 --eval_freq 100 --cfg 2.2 --interval_min 0.1 --interval_max 1.0 \
 --data_path /mnt/vepfs/base2/stream/ningmang/datasets/imagenet256/train --online_eval \
 --output_dir "$OUTPUT_DIR"
