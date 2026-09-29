@@ -30,5 +30,4 @@ main_jit.py --model JiT-B/16 \
 
 # --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
 
-# sslaunch submit -j base -c zhongwei -q stream -n 1 --no-log -- bash imagenet256_train_base.sh
 # sslaunch submit -j base -q stream -n 1 --no-log -- bash imagenet256_train_base.sh

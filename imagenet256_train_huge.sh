@@ -29,7 +29,4 @@ main_jit.py --model JiT-H/16 \
 # --resume /home/ningmang/jit/JiT_exps/base_huge_b2k/checkpoint-last.pth
 
 
-# --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
-
-# sslaunch submit -j huge -c zhongwei -q stream -n 1 --no-log -- bash imagenet256_train_huge.sh
-# sslaunch submit -j huge -p low -q stream -n 1 --no-log -- bash imagenet256_train_huge.sh
+# sslaunch submit -j huge -q stream -n 1 --no-log -- bash imagenet256_train_huge.sh

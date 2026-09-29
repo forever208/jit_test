@@ -30,5 +30,4 @@ main_jit.py --model JiT-L/32 \
 
 # --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
 
-# sslaunch submit -j p512 -c zhongwei -q stream -n 1 --no-log -- bash imagenet512_train_large.sh
-# sslaunch submit -j p512 -p low -q stream -n 1 --no-log -- bash imagenet512_train_large.sh
+# sslaunch submit -j p512 -q stream -n 1 --no-log -- bash imagenet512_train_large.sh

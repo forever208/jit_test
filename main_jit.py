@@ -67,6 +67,12 @@ def get_args_parser():
     parser.add_argument('--evaluate_gen', action='store_true')
     parser.add_argument('--gen_bsz', type=int, default=256, help='Generation batch size')
     parser.add_argument('--eval_ema', type=float, choices=(0.9999, 0.9996), default=0.9999, help='EMA decay whose weights are used for sampling',)
+    parser.add_argument('--resume_epochs', type=int, nargs='+', default=None,
+                        help='With --evaluate_gen: evaluate output_dir/checkpoint-{epoch}.pth for each epoch (overrides --resume)')
+    parser.add_argument('--cfg_values', type=float, nargs='+', default=None,
+                        help='With --evaluate_gen: sweep over these CFG scales (overrides --cfg)')
+    parser.add_argument('--eval_ema_values', type=float, nargs='+', choices=(0.9999, 0.9996), default=None,
+                        help='With --evaluate_gen: sweep over these EMA decays (overrides --eval_ema)')
 
     # dataset
     parser.add_argument('--data_path', default='./data/imagenet', type=str, help='Path to the dataset')
@@ -93,7 +99,92 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
+def load_checkpoint(checkpoint_path, model_without_ddp, optimizer=None):
+    """Load model and EMA weights (and optionally optimizer state); return the checkpoint epoch or None."""
+    # Training checkpoints include non-tensor metadata such as
+    # argparse.Namespace, so they cannot use PyTorch 2.6+'s
+    # weights_only=True default. Checkpoints passed via --resume are
+    # expected to come from a trusted training run.
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+    model_without_ddp.load_state_dict(checkpoint['model'])
+
+    ema_state_dict1 = checkpoint['model_ema1']
+    ema_state_dict2 = checkpoint['model_ema2']
+    model_without_ddp.ema_params1 = [ema_state_dict1[name].cuda() for name, _ in model_without_ddp.named_parameters()]
+    model_without_ddp.ema_params2 = [ema_state_dict2[name].cuda() for name, _ in model_without_ddp.named_parameters()]
+    print("Resumed checkpoint from", checkpoint_path)
+
+    epoch = checkpoint.get('epoch')
+    if optimizer is not None and 'optimizer' in checkpoint and epoch is not None:
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        print("Loaded optimizer & scaler state!")
+    del checkpoint
+    return epoch
+
+
+def evaluate_sweep(model_without_ddp, args, checkpoint_paths, seed, log_writer=None):
+    cfg_values = args.cfg_values or [args.cfg]
+    ema_values = args.eval_ema_values or [args.eval_ema]
+    num_runs = len(checkpoint_paths) * len(ema_values) * len(cfg_values)
+    run_idx = 0
+    for checkpoint_path in checkpoint_paths:
+        epoch = load_checkpoint(checkpoint_path, model_without_ddp)
+        start_epoch = epoch + 1 if epoch is not None else args.start_epoch
+        for ema in ema_values:
+            for cfg in cfg_values:
+                run_idx += 1
+                args.cfg = cfg
+                args.eval_ema = ema
+                model_without_ddp.cfg_scale = cfg
+                print(
+                    f"[{run_idx}/{num_runs}] Evaluating checkpoint {checkpoint_path} "
+                    f"(epoch {start_epoch}) cfg={cfg:g} ema={ema:g}"
+                )
+                torch.cuda.empty_cache()
+                with torch.random.fork_rng():
+                    torch.manual_seed(seed)
+                    with torch.no_grad():
+                        fid, is_score = evaluate(model_without_ddp, args, start_epoch - 1, batch_size=args.gen_bsz, log_writer=log_writer)
+
+                if misc.is_main_process():
+                    with open(os.path.join(args.output_dir, 'FID.log'), 'a') as f:
+                        print(
+                            f'epoch={checkpoint_path} cfg={cfg:g} '
+                            f'ema={ema:g} '
+                            f'interval_min={args.interval_min:g} interval_max={args.interval_max:g} '
+                            f'FID={fid:.5f} IS={is_score:.5f}',
+                            file=f,
+                        )
+                    if log_writer is not None:
+                        log_writer.flush()
+
+
 def main(args):
+    sweep_args = {
+        '--resume_epochs': args.resume_epochs,
+        '--cfg_values': args.cfg_values,
+        '--eval_ema_values': args.eval_ema_values,
+    }
+    if not args.evaluate_gen:
+        used = [name for name, value in sweep_args.items() if value]
+        if used:
+            raise ValueError(f'{", ".join(used)} can only be used with --evaluate_gen')
+
+    eval_checkpoint_paths = []
+    if args.evaluate_gen:
+        if args.resume_epochs:
+            eval_checkpoint_paths = [
+                os.path.join(args.output_dir, f'checkpoint-{epoch}.pth')
+                for epoch in args.resume_epochs
+            ]
+        elif args.resume:
+            eval_checkpoint_paths = [args.resume]
+        else:
+            raise ValueError('--evaluate_gen requires --resume or --resume_epochs')
+        missing = [path for path in eval_checkpoint_paths if not os.path.isfile(path)]
+        if missing:
+            raise FileNotFoundError(f'Checkpoint not found: {", ".join(missing)}')
+
     misc.init_distributed_mode(args)
     print('Job directory:', os.path.dirname(os.path.realpath(__file__)))
     print("Arguments:\n{}".format(args).replace(', ', ',\n'))
@@ -178,52 +269,22 @@ def main(args):
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
     print(optimizer)
 
+    # Evaluate generation
+    if args.evaluate_gen:
+        evaluate_sweep(model_without_ddp, args, eval_checkpoint_paths, seed, log_writer=log_writer)
+        return
+
     # Resume from checkpoint if provided
     checkpoint_path = args.resume if args.resume else None
     # checkpoint_path = os.path.join(args.resume, "checkpoint-last.pth") if args.resume else None
     if checkpoint_path and os.path.exists(checkpoint_path):
-        # Training checkpoints include non-tensor metadata such as
-        # argparse.Namespace, so they cannot use PyTorch 2.6+'s
-        # weights_only=True default. Checkpoints passed via --resume are
-        # expected to come from a trusted training run.
-        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
-        model_without_ddp.load_state_dict(checkpoint['model'])
-
-        ema_state_dict1 = checkpoint['model_ema1']
-        ema_state_dict2 = checkpoint['model_ema2']
-        model_without_ddp.ema_params1 = [ema_state_dict1[name].cuda() for name, _ in model_without_ddp.named_parameters()]
-        model_without_ddp.ema_params2 = [ema_state_dict2[name].cuda() for name, _ in model_without_ddp.named_parameters()]
-        print("Resumed checkpoint from", args.resume)
-
-        if 'optimizer' in checkpoint and 'epoch' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            args.start_epoch = checkpoint['epoch'] + 1
-            print("Loaded optimizer & scaler state!")
-        del checkpoint
+        epoch = load_checkpoint(checkpoint_path, model_without_ddp, optimizer)
+        if epoch is not None:
+            args.start_epoch = epoch + 1
     else:
         model_without_ddp.ema_params1 = copy.deepcopy(list(model_without_ddp.parameters()))
         model_without_ddp.ema_params2 = copy.deepcopy(list(model_without_ddp.parameters()))
         print("Training from scratch")
-
-    # Evaluate generation
-    if args.evaluate_gen:
-        print("Evaluating checkpoint at {} epoch".format(args.start_epoch))
-        with torch.random.fork_rng():
-            torch.manual_seed(seed)
-            with torch.no_grad():
-                fid, is_score = evaluate(model_without_ddp, args, 0, batch_size=args.gen_bsz, log_writer=log_writer)
-        
-        if misc.is_main_process():
-                with open(os.path.join(args.output_dir, f'FID.log'), 'a') as f:
-                    print(
-                        f'epoch={checkpoint_path} cfg={args.cfg:g} '
-                        f'ema={args.eval_ema:g} '
-                        f'interval_min={args.interval_min:g} interval_max={args.interval_max:g} '
-                        f'FID={fid:.5f} IS={is_score:.5f}',
-                        file=f,
-                    )
-
-        return
 
     # Training loop
     print(f"Start training for {args.epochs} epochs")
