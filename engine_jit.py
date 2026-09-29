@@ -73,10 +73,10 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
     local_rank = misc.get_rank()
     num_steps = args.num_images // (batch_size * world_size) + 1
 
-    # Construct the folder name for saving generated images.
+    # Node-local folder: rank 0 computes FID from it, so all ranks must share one node.
     save_folder = os.path.join(
-        "ssd/tmp",
-        args.output_dir,
+        "/tmp/jit_eval",
+        os.path.abspath(args.output_dir).lstrip(os.sep),
         "{}-steps{}-cfg{}-ema{}-interval{}-{}-image{}-res{}".format(
             model_without_ddp.method, model_without_ddp.steps, model_without_ddp.cfg_scale,
             args.eval_ema, model_without_ddp.cfg_interval[0], model_without_ddp.cfg_interval[1],
@@ -155,6 +155,12 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
             fid_statistics_file = 'fid_stats/jit_in512_stats.npz'
         else:
             raise NotImplementedError
+        num_saved = len([f for f in os.listdir(save_folder) if f.endswith('.png')])
+        if num_saved != args.num_images:
+            raise RuntimeError(
+                f'Expected {args.num_images} images in {save_folder}, found {num_saved}; '
+                'node-local eval folder requires all ranks on one node'
+            )
         metrics_dict = torch_fidelity.calculate_metrics(
             input1=save_folder,
             input2=None,
