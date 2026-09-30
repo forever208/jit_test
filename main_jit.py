@@ -317,22 +317,27 @@ def main(args):
         if args.online_eval and (epoch % args.eval_freq == 0 or epoch + 1 == args.epochs) and epoch > 10:
             torch.cuda.empty_cache()
             cfg_scale = model_without_ddp.cfg_scale
+            eval_ema = args.eval_ema
             try:
                 # Keep the CFG evaluation and subsequent training RNG state
                 # identical to the original single-evaluation behavior.
                 model_without_ddp.cfg_scale = 1.0
-                with torch.random.fork_rng():
-                    with torch.no_grad():
-                        fid, is_score = evaluate(
-                            model_without_ddp, args, epoch,
-                            batch_size=args.gen_bsz, log_writer=log_writer
-                        )
+                for ema in (args.ema_decay1, args.ema_decay2):
+                    args.eval_ema = ema
+                    with torch.random.fork_rng():
+                        with torch.no_grad():
+                            fid, is_score = evaluate(
+                                model_without_ddp, args, epoch,
+                                batch_size=args.gen_bsz, log_writer=log_writer
+                            )
 
-                if misc.is_main_process():
-                    with open(os.path.join(args.output_dir, 'eval_cond.log'), 'a') as f:
-                        print(f'epoch={epoch} FID={fid:.5f} IS={is_score:.5f}', file=f)
+                    if misc.is_main_process():
+                        with open(os.path.join(args.output_dir, 'eval_cond.log'), 'a') as f:
+                            print(f'epoch={epoch} ema={ema:g} FID={fid:.5f} IS={is_score:.5f}', file=f)
 
-                torch.cuda.empty_cache()
+                    torch.cuda.empty_cache()
+
+                args.eval_ema = eval_ema
                 model_without_ddp.cfg_scale = cfg_scale
                 with torch.no_grad():
                     fid, is_score = evaluate(
@@ -344,6 +349,7 @@ def main(args):
                     with open(os.path.join(args.output_dir, f'eval_cfg_{cfg_scale}.log'), 'a') as f:
                         print(f'epoch={epoch} FID={fid:.5f} IS={is_score:.5f}', file=f)
             finally:
+                args.eval_ema = eval_ema
                 model_without_ddp.cfg_scale = cfg_scale
                 torch.cuda.empty_cache()
 
