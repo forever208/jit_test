@@ -296,15 +296,6 @@ def main(args):
         train_one_epoch(model, model_without_ddp, data_loader_train, optimizer, device, epoch, log_writer=log_writer, args=args)
 
         # Save checkpoint periodically
-        if epoch % 5 == 0 or epoch + 1 == args.epochs:
-            misc.save_model(
-                args=args,
-                model_without_ddp=model_without_ddp,
-                optimizer=optimizer,
-                epoch=epoch,
-                epoch_name="last"
-            )
-
         if epoch % args.eval_freq == 0 and epoch > 0:
             misc.save_model(
                 args=args,

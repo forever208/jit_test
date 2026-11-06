@@ -7,7 +7,7 @@ conda activate jit
 export TORCH_HOME=/home/ningmang/torch_cache
 
 # log and error settings
-OUTPUT_DIR=/home/ningmang/jit/JiT_exps/base_huge_b1k_dim1344
+OUTPUT_DIR=/home/ningmang/jit/JiT_exps/512_huge_b1k_dim1344
 LOG_DIR="$OUTPUT_DIR/logs/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"
 exec > >(tee -a "$LOG_DIR/stdout.log") 2> >(tee -a "$LOG_DIR/stderr.log" >&2)
@@ -31,4 +31,4 @@ main_jit.py --model JiT-H/32 \
 
 # --resume /home/ningmang/jit/JiT_exps/imgnet256_base_p16/checkpoint-official.pth \
 
-# sslaunch submit -j huge -q stream -n 1 --no-log -- bash imagenet256_train_huge.sh
+# sslaunch submit -j huge512 -q stream -n 1 --no-log -- bash imagenet512_train_huge.sh
